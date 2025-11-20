@@ -1,0 +1,43 @@
+{ "frames": {
+   "bow-1-0.aseprite": {
+    "frame": { "x": 0, "y": 0, "w": 256, "h": 256 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 256 },
+    "sourceSize": { "w": 256, "h": 256 },
+    "duration": 500
+   }
+ },
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.x-dev",
+  "image": "bow-1.png",
+  "format": "RGBA8888",
+  "size": { "w": 256, "h": 256 },
+  "scale": "1",
+  "frameTags": [
+  ],
+  "layers": [
+   { "name": "shadow", "opacity": 255, "blendMode": "normal" },
+   { "name": "Layer 1", "opacity": 255, "blendMode": "normal" },
+   { "name": "Layer 2", "opacity": 255, "blendMode": "normal" },
+   { "name": "axe-arrow", "opacity": 255, "blendMode": "normal" },
+   { "name": "details", "opacity": 255, "blendMode": "normal" },
+   { "name": "target", "opacity": 255, "blendMode": "normal" },
+   { "name": "generic-enemy", "opacity": 255, "blendMode": "normal" },
+   { "name": "rotate-target", "opacity": 255, "blendMode": "normal" },
+   { "name": "extra-arrow", "opacity": 255, "blendMode": "normal" },
+   { "name": "animated-shoot" },
+   { "name": "player", "group": "animated-shoot", "opacity": 255, "blendMode": "normal" },
+   { "name": "bow", "group": "animated-shoot", "opacity": 255, "blendMode": "normal" },
+   { "name": "arrow", "group": "animated-shoot", "opacity": 255, "blendMode": "normal" },
+   { "name": "goose", "group": "animated-shoot" },
+   { "name": "head", "group": "goose", "opacity": 255, "blendMode": "normal" },
+   { "name": "body", "group": "goose", "opacity": 255, "blendMode": "normal" },
+   { "name": "left-wing", "group": "goose", "opacity": 255, "blendMode": "normal" },
+   { "name": "right-wing", "group": "goose", "opacity": 255, "blendMode": "normal" }
+  ],
+  "slices": [
+  ]
+ }
+}
