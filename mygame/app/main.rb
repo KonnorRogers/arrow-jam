@@ -14,6 +14,20 @@ module App
       source_w: 32,
       path: SPRITE_PATH
     },
+    chain_lightning: {
+      source_x: 32,
+      source_y: 192,
+      source_h: 32,
+      source_w: 32,
+      path: SPRITE_PATH
+    },
+    ice_shard: {
+      source_x: 160,
+      source_y: 186,
+      source_h: 6,
+      source_w: 5,
+      path: SPRITE_PATH
+    },
     target: {
       source_x: 64,
       source_y: 128,
@@ -34,7 +48,7 @@ module App
       source_h: 16,
       source_w: 16,
       path: SPRITE_PATH,
-      flip_horizontally: true
+      # flip_horizontally: true
     },
     goose: {
       source_x: 128,
@@ -158,7 +172,7 @@ module App
   end
 
   class Enemy < ::SpriteKit::Sprite
-    attr_accessor :speed, :type
+    attr_accessor :speed, :type, :radius
 
     def initialize(**kwargs)
       super(**SPRITES[:goose], **kwargs)
@@ -176,14 +190,23 @@ module App
     end
   end
 
-  class Player < ::SpriteKit::Sprite
-    attr_accessor :speed, :arrow, :power
-
+  class Bow < ::SpriteKit::Sprite
     def initialize(**kwargs)
       super(**SPRITES[:bow], **kwargs)
+    end
+  end
+
+  class Player < ::SpriteKit::Sprite
+    attr_accessor :speed, :arrow, :power, :bow
+
+    def initialize(**kwargs)
+      super(**SPRITES[:player], **kwargs)
 
       @arrow_speed ||= 6
-      @angle ||= 0
+      @bow_angle ||= 0
+
+      @bow_offset = 48
+      @bow = Bow.new(**kwargs, x: @x + @bow_offset, angle: @bow_angle)
 
       reload
     end
@@ -192,28 +215,34 @@ module App
       random_arrow = ARROW_TYPES.values.sample
       # random_arrow = ARROW_TYPES[:drill]
       # random_arrow = ARROW_TYPES[:fire]
-      @arrow = random_arrow.new(x: @x, y: @y, w: @w, h: @h, angle: @angle, speed: @arrow_speed)
+      # random_arrow = ARROW_TYPES[:lightning]
+      # random_arrow = ARROW_TYPES[:ice]
+      @arrow = random_arrow.new(x: @x + @bow_offset, y: @y, w: @w, h: @h, angle: @bow_angle, speed: @arrow_speed)
     end
 
     def x=(val)
       @x = val
-      @arrow.x = val
+      @arrow.x = @bow_offset + val
+      @bow.x = @bow_offset + val
     end
 
     def y=(val)
       @y = val
       @arrow.y = val
+      @bow.y = val
     end
 
-    def angle=(val)
-      @angle = val
+    def bow_angle=(val)
+      @bow_angle = val
       @arrow.angle = val
+      @bow.angle = val
     end
 
     def prefab
       [
         self,
-        arrow
+        @bow,
+        @arrow
       ]
     end
   end
@@ -336,10 +365,82 @@ module App
     end
   end
 
+  class IceShard < Arrow
+    attr_accessor :scale
+
+    def initialize(**kwargs)
+      @arrow_type = :ice_shard
+      super(sprite: SPRITES[:ice_shard], **kwargs)
+      @speed = 8
+      @scale ||= 4
+      @w = 6 * @scale
+      @h = 5 * @scale
+      @gravity = -1
+      set_sprite
+    end
+
+    def set_sprite
+      @sprite.each do |k, v|
+        instance_variable_set("@#{k}", v)
+      end
+    end
+  end
+
   class IceArrow < Arrow
     def initialize(...)
       @arrow_type = :ice
       super(...)
+    end
+
+    def hit_box
+      # Hit box of the ice arrow is 22x22 "circle", but we'll just calculate it as a square to make life easy.
+      tip = super()
+
+      tip.merge({
+        w: 22,
+        h: 22,
+        x: tip.x - 22 - tip.w,
+        y: tip.y - 22 - tip.h,
+        anchor_x: 0.5,
+        anchor_y: 0.5,
+      })
+    end
+
+    # Dynamically calculates ice shards to send out.
+    def shards(scale = 2)
+      # 21x22, 4px from bottom, 6px from top and 10px from left.
+      shard_circle = {
+        x: @x + (10 * scale),
+        y: @y + (4 * scale),
+        w: 21 * scale,
+        h: 22 * scale,
+      }
+
+      # Center of arrow is 11px.
+      center_y = 11 * scale
+
+
+      [
+        # top-left (+2px from center)
+        IceShard.new(x: shard_circle.x, y: shard_circle.y + center_y + (2 * scale), angle: -45, scale: scale),
+        # bottom-left (-2px from center)
+        IceShard.new(x: shard_circle.x, y: shard_circle.y + center_y - (2 * scale), angle: -135, scale: scale),
+
+        # top-middle-left
+        IceShard.new(x: shard_circle.x + (6 * scale), y: shard_circle.y + center_y + (5 * scale), angle: -45, scale: scale),
+        # bottom-middle-left
+        IceShard.new(x: shard_circle.x + (6 * scale), y: shard_circle.y, angle: -135, scale: scale),
+
+        # top-middle-right
+        IceShard.new(x: shard_circle.x + (13 * scale), y: shard_circle.y + center_y + (5 * scale), angle: 45, scale: scale),
+        # bottom-middle-right
+        IceShard.new(x: shard_circle.x + (13 * scale), y: shard_circle.y, angle: 135, scale: scale),
+
+        # top-right
+        IceShard.new(x: shard_circle.x + (17 * scale), y: shard_circle.y + center_y + (2 * scale), angle: 45, scale: scale),
+        # bottom-right
+        IceShard.new(x: shard_circle.x + (17 * scale), y: shard_circle.y + center_y - (2 * scale), angle: 135, scale: scale),
+      ]
     end
   end
 
@@ -379,7 +480,6 @@ module App
                           tick_count_override: tick_count
                      )
 
-      $game.outputs << @frame_index.to_s
       if @frame_index == nil
         return
       end
@@ -388,6 +488,77 @@ module App
       @w = @frame_index * @source_w
       # @x = @x - @w
       # @h = @y - @h
+    end
+  end
+
+  class ChainLightning < ::SpriteKit::Sprite
+    # attr_accessor :exploded_at, :frame_index
+    attr_accessor :hit_box, :lightning_radius, :frame_index, :animation_start, :active
+
+    def initialize(animation_start:, **kwargs)
+      super(**kwargs)
+      @animation_start ||= animation_start
+      @sprite ||= SPRITES[:chain_lightning]
+      @w ||= @sprite.source_w
+      @h ||= @sprite.source_h
+      @lightning_radius ||= 12
+      @anchor_x ||= 0.5
+      @anchor_y ||= 0.5
+      @active = true
+      set_sprite
+    end
+
+    def set_sprite
+      @sprite.each do |k, v|
+        instance_variable_set("@#{k}", v)
+      end
+    end
+
+    def active?
+      @active == true
+    end
+
+    def update(tick_count)
+      @frame_index = Numeric.frame_index(
+                          count: 1, # or frame_count: 6 (if both are provided frame_count will be used)
+                          hold_for: 16,
+                          repeat: false,
+                          repeat_index: 0,
+                          start_at: @animation_start,
+                          tick_count_override: tick_count
+                     )
+
+      return @frame_index
+    end
+
+    def hit_box_from_enemy(enemy)
+      {
+        x: enemy.x,
+        y: enemy.y,
+        w: enemy.w,
+        h: enemy.h,
+        radius: enemy.w + @lightning_radius,
+        anchor_x: 0.5,
+        anchor_y: 0.5,
+      }
+    end
+
+    def jump_to(enemy, tick_count)
+      # The sprites need to be adjusted 90degrees to make sure they point in the right direction from how the sprite was drawn
+      angle = Geometry.angle_from(@hit_box, enemy)
+      distance = Geometry.distance(@hit_box, enemy)
+
+      hit_box = hit_box_from_enemy(enemy)
+
+      return ChainLightning.new(
+        w: distance + (@hit_box.w / 2),
+        h: distance + (@hit_box.h / 2),
+        x: @hit_box.x + (@hit_box.w / 2),
+        y: @hit_box.y + (@hit_box.h / 2),
+        animation_start: tick_count,
+        angle: angle,
+        hit_box: hit_box
+      )
     end
   end
 
@@ -425,6 +596,7 @@ module App
       # @powerups = generate_powerups
       @projectiles = {}
       @explosions = {}
+      @chain_lightnings = {}
       @pause_screen = PauseScreen.new
       @game_over_screen = GameOverScreen.new
     end
@@ -585,7 +757,7 @@ module App
             g: 0,
             a: 255,
           }
-          @player.angle = angle
+          @player.bow_angle = angle
         end
       else
         # @player.angle = 0
@@ -599,10 +771,15 @@ module App
 
         # This is fine to do becaus ethe array doesn't get altered.
         hit_box = projectile.hit_box
-        hit_enemy = Geometry.find_intersect_rect(hit_box, enemies_and_powerups)
+
+        # if projectile.type == :arrow && projectile.arrow_type == :ice_arrow
+        #   hit_enemy = Geometry.find_intersect_rect(hit_box, enemies_and_powerups)
+        # else
+          hit_enemy = Geometry.find_intersect_rect(hit_box, enemies_and_powerups)
+        # end
 
         if hit_enemy
-          if projectile.type == :arrow && projectile.arrow_type == :drill
+          if projectile.type == :arrow && (projectile.arrow_type == :drill || projectile.arrow_type == :ice_shard)
             # Don't delete drill arrows.
           else
             @projectiles.delete(projectile.object_id)
@@ -620,6 +797,23 @@ module App
                 exploded_at: @tick_count
               )
               @explosions[explosion.object_id] = explosion
+            end
+
+            if projectile.arrow_type == :lightning
+              chain_lightning = ChainLightning.new(animation_start: @tick_count)
+              chain_lightning.hit_box = chain_lightning.hit_box_from_enemy(hit_enemy)
+              @chain_lightnings[chain_lightning.object_id] = chain_lightning
+            end
+
+            if projectile.arrow_type == :ice
+              # 45 90 135 180
+              # There's 8 projectiles attached to the ice arrow. They all need to fly off in an angle relative to the head of the arrow.
+              Array.each(projectile.shards) do |shard|
+                # shard.angle = 45
+                shard.shoot(100)
+                # shard.hit_box = self
+                @projectiles[shard.object_id] = shard
+              end
             end
           # elsif hit_enemy.type == :powerup
           #   @powerups.delete(hit_enemy)
@@ -639,6 +833,36 @@ module App
         if explosion.frame_index == nil
           @explosions.delete(explosion.object_id)
         end
+      end
+
+      Array.each(@chain_lightnings.values) do |chain_lightning|
+        frame_index = chain_lightning.update(@tick_count)
+
+        if frame_index == nil
+          @chain_lightnings.delete(chain_lightning.object_id)
+        end
+
+        if !chain_lightning.active?
+          next
+        end
+
+        enemy = @enemies.find do |enemy|
+          anchored_enemy = enemy.dup.tap do |spr|
+            spr.anchor_x = 0.5
+            spr.anchor_y = 0.5
+            spr.radius = 0
+          end
+          Geometry.intersect_circle?(chain_lightning.hit_box, anchored_enemy)
+        end
+        # enemy = Geometry.find_intersect_rect(chain_lightning.hit_box, @enemies)
+
+        if enemy
+          enemies_to_delete << enemy
+          new_chain_lightning = chain_lightning.jump_to(enemy, @tick_count)
+          @chain_lightnings[new_chain_lightning.object_id] = new_chain_lightning
+        end
+
+        chain_lightning.active = false
       end
 
       Array.each(@enemies) do |spr|
@@ -662,6 +886,7 @@ module App
         # .concat(@powerups)
         .concat(@projectiles.values)
         .concat(@explosions.values)
+        .concat(@chain_lightnings.values)
       draw_buffer.primitives.concat(sprites)
 
       if @paused
