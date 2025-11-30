@@ -1,192 +1,32 @@
-require "vendor/sprite_kit/sprite_kit.rb"
-
-
 module App
   FPS = 60
   DELTA_TIME = 1 / FPS
+end
 
-  SPRITE_PATH = "sprites/bow-1.png"
-  SPRITES = {
-    explosion: {
-      source_x: 128,
-      source_y: 192,
-      source_h: 32,
-      source_w: 32,
-      path: SPRITE_PATH
-    },
-    chain_lightning: {
-      source_x: 32,
-      source_y: 192,
-      source_h: 32,
-      source_w: 32,
-      path: SPRITE_PATH
-    },
-    ice_shard: {
-      source_x: 160,
-      source_y: 186,
-      source_h: 6,
-      source_w: 5,
-      path: SPRITE_PATH
-    },
-    target: {
-      source_x: 64,
-      source_y: 128,
-      source_h: 16,
-      source_w: 16,
-      path: SPRITE_PATH
-    },
-    bow: {
-      source_x: 17,
-      source_y: 128,
-      source_h: 16,
-      source_w: 17,
-      path: SPRITE_PATH,
-    },
-    player: {
-      source_x: 48,
-      source_y: 144,
-      source_h: 16,
-      source_w: 16,
-      path: SPRITE_PATH,
-      # flip_horizontally: true
-    },
-    goose: {
-      source_x: 128,
-      source_y: 96,
-      source_h: 32,
-      source_w: 32,
-      path: SPRITE_PATH,
-      flip_horizontally: true,
-    },
-    ice: {
-      box: {
-        source_x: 64,
-        source_y: 208,
-        source_h: 16,
-        source_w: 16,
-        path: SPRITE_PATH
-      },
-      arrow: {
-        source_x: 96,
-        source_y: 160,
-        source_h: 32,
-        source_w: 32,
-        path: SPRITE_PATH
-      }
-    },
-    fire: {
-      box: {
-        source_x: 80,
-        source_y: 192,
-        source_h: 16,
-        source_w: 16,
-        path: SPRITE_PATH
-      },
-      arrow: {
-        source_x: 128,
-        source_y: 160,
-        source_h: 32,
-        source_w: 32,
-        path: SPRITE_PATH
-      },
-    },
-    plain: {
-      arrow: {
-        source_x: 0,
-        source_y: 160,
-        source_h: 32,
-        source_w: 32,
-        primitive_marker: :sprite,
-        path: SPRITE_PATH
-      },
-    },
-    lightning: {
-      box: {
-        source_x: 80,
-        source_y: 208,
-        source_h: 16,
-        source_w: 16,
-        path: SPRITE_PATH
-      },
-      arrow: {
-        source_x: 32,
-        source_y: 160,
-        source_h: 32,
-        source_w: 32,
-        path: SPRITE_PATH
-      },
-    },
-    drill: {
-      box: {
-        source_x: 64,
-        source_y: 192,
-        source_h: 16,
-        source_w: 16,
-        path: SPRITE_PATH
-      },
-      arrow: {
-        source_x: 64,
-        source_y: 160,
-        source_h: 32,
-        source_w: 32,
-        path: SPRITE_PATH
-      }
-    },
-    random: {
-      box: {
-        source_x: 96,
-        source_y: 192,
-        source_h: 16,
-        source_w: 16,
-        path: SPRITE_PATH
-      }
-    },
-  }
+require "vendor/sprite_kit/sprite_kit.rb"
+require "app/sprites.rb"
 
-  class Powerup < ::SpriteKit::Sprite
-    attr_accessor :speed, :type
-
-    def initialize(powerup:, **kwargs)
-      super(powerup: powerup, **kwargs)
-      @type = :powerup
-      @powerup = powerup
-      @angle ||= 0
-      set_sprite
-    end
-
-    def set_sprite
-      sprite = SPRITES[@powerup][:box]
-      sprite.each do |k, v|
-        instance_variable_set("@#{k}", v)
-      end
-    end
-
-    def update
-      speed = @speed / FPS
-      angle = @angle.to_radians
-      dx = speed * Math.cos(angle)
-      dy = speed * Math.sin(angle)
-      @x -= dx
-      @y -= dy
-    end
-  end
-
+module App
   class Enemy < ::SpriteKit::Sprite
     attr_accessor :speed, :type, :radius
 
     def initialize(**kwargs)
-      super(**SPRITES[:goose], **kwargs)
+      super(**SPRITES[:target], **kwargs)
       @type = :enemy
       @angle ||= 0
     end
 
-    def update
-      speed = @speed / FPS
-      angle = @angle.to_radians
-      dx = speed * Math.cos(angle)
-      dy = speed * Math.sin(angle)
-      @x -= dx
-      @y -= dy
+    def update(mode)
+      if mode == :endless
+        speed = @speed / FPS
+        angle = @angle.to_radians
+        dx = speed * Math.cos(angle)
+        dy = speed * Math.sin(angle)
+        @x -= dx
+        @y -= dy
+      else
+        # Determine a path like a normal person.
+      end
     end
   end
 
@@ -202,7 +42,7 @@ module App
     def initialize(**kwargs)
       super(**SPRITES[:player], **kwargs)
 
-      @arrow_speed ||= 6
+      @arrow_speed ||= 7
       @bow_angle ||= 0
 
       @bow_offset = 48
@@ -212,7 +52,8 @@ module App
     end
 
     def reload
-      random_arrow = ARROW_TYPES.values.sample
+      random_arrow = ARROW_TYPES[:plain]
+      # random_arrow = ARROW_TYPES.values.sample
       # random_arrow = ARROW_TYPES[:drill]
       # random_arrow = ARROW_TYPES[:fire]
       # random_arrow = ARROW_TYPES[:lightning]
@@ -254,7 +95,7 @@ module App
 
     def initialize(**kwargs)
       super(**kwargs)
-      @gravity = -300
+      @gravity = -350
       @type = :arrow
       @arrow_type ||= :plain
       set_sprite
@@ -445,7 +286,7 @@ module App
   end
 
   ARROW_TYPES = {
-    # plain: Arrow,
+    plain: Arrow,
     drill: DrillArrow,
     fire: FireArrow,
     lightning: LightningArrow,
@@ -563,8 +404,12 @@ module App
   end
 
   class PlayScene < SpriteKit::Scene
-    MAX_TARGETS = 50
+    MAX_TARGETS = 5
     MAX_POWERUPS = 8
+    MODES = {
+      normal: :normal,
+      endless: :endless
+    }
     POWERUPS = [
       :ice,
       :lightning,
@@ -599,6 +444,7 @@ module App
       @chain_lightnings = {}
       @pause_screen = PauseScreen.new
       @game_over_screen = GameOverScreen.new
+      @mode = MODES[:normal]
     end
 
     def generate_powerups(powerups = [], max_powerups = MAX_POWERUPS)
@@ -631,21 +477,21 @@ module App
       sizes = [32, 32 * 2, 32 * 3]
       speeds = [150, 200, 250]
       elapsed_time = ((@elapsed_time || 1000) / 1000).to_i
-      while enemies.length - 1 < ((max_targets + elapsed_time) * 2)
+      while enemies.length - 1 < ((max_targets + (elapsed_time / 2)))
         rand_size = sizes.sample
         # rand_speed = (rand_size / (rand_size * 2)) ** 2
         rand_speed = speeds.sample
 
         # min angle of 8, max angle of 75
-        angle = rand(67) + 8
+        # angle = rand(67) + 8
 
         enemies << Enemy.new(
-          x: Grid.w - 200 + rand(100) + 50,
-          y: 50,
+          x: 200 + rand(Grid.w - 200 - rand_size),
+          y: 50 + rand(Grid.h - 50 - rand_size),
           speed: rand_speed,
           w: rand_size,
           h: rand_size,
-          angle: 360 - angle,
+          # angle: 360 - angle,
         )
       end
 
@@ -763,9 +609,6 @@ module App
         # @player.angle = 0
       end
 
-      enemies_and_powerups = @enemies
-        # .concat(@powerups)
-
       Array.each(@projectiles.values) do |projectile|
         projectile.update
 
@@ -775,7 +618,7 @@ module App
         # if projectile.type == :arrow && projectile.arrow_type == :ice_arrow
         #   hit_enemy = Geometry.find_intersect_rect(hit_box, enemies_and_powerups)
         # else
-          hit_enemy = Geometry.find_intersect_rect(hit_box, enemies_and_powerups)
+          hit_enemy = Geometry.find_intersect_rect(hit_box, @enemies)
         # end
 
         if hit_enemy
@@ -865,19 +708,19 @@ module App
         chain_lightning.active = false
       end
 
+      update_enemies(enemies_to_delete)
+    end
+
+    def update_enemies(enemies_to_delete)
       Array.each(@enemies) do |spr|
-        spr.update
-        enemies_to_delete << spr if spr.x <= -50 || spr.y > Grid.h + 50
+        spr.update(@mode)
+
+        if @mode == MODES.endless
+          enemies_to_delete << spr if spr.x <= -50 || spr.y > Grid.h + 50
+        end
       end
 
       Array.each(enemies_to_delete) { |spr| @enemies.delete(spr) }
-
-      # powerups_to_delete = []
-      # Array.each(@powerups) do |spr|
-      #   spr.update
-      #   powerups_to_delete << spr if spr.x <= -50 || spr.y > Grid.h + 50
-      # end
-      # Array.each(powerups_to_delete) { |spr| @powerups.delete(spr) }
     end
 
     def render
@@ -1031,6 +874,7 @@ module App
       @scene_manager = SpriteKit::SceneManager.new(
         current_scene: :play_scene,
         scenes: {
+          # title_scene: TitleScene,
           play_scene: PlayScene,
           spritesheet_scene: SpriteKit::Scenes::SpritesheetScene
         }
