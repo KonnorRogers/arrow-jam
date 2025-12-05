@@ -4,8 +4,12 @@
 
 Lets just finish the damn jam. Make targets appear randomly, you get a multiplier for consecutive target hits.
 
-- [ ] - Score based on size + distance + consecutive hit multiplier
+- [x] - Score based on size + distance + consecutive hit multiplier
+- [ ] - Create a proper score "shower"
+- [ ] - High score??
 - [ ] - Show a power bar
+- [ ] - Pause button? Maybe?
+- [x] - Show ~~scissor lift~~ rocket platform to move up / down
 
 ~~
 - [ ] - Endless mode (max # of arrows, endless arrows, random arrows, selecting arrows)

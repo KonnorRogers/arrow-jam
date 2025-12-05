@@ -1,6 +1,20 @@
 module App
   FPS = 60
   DELTA_TIME = 1 / FPS
+
+  PALLETTE = {
+    red: { r: 255, b: 0, g: 0, a: 255 },
+    black: { r: 0, b: 0, g: 0, a: 255 },
+    white: { r: 255, b: 255, g: 255, a: 255 },
+    green: { r: 0, b: 0, g: 128, a: 255 }
+  }
+
+  def self.rect_to_circle(rect)
+    radius = Math.sqrt(rect.w ** 2 + rect.h ** 2) / 2
+    x = rect.x + (rect.w / 2)
+    y = rect.y + (rect.h / 2)
+    return {x: x, y: y, radius: radius}
+  end
 end
 
 require "vendor/sprite_kit/sprite_kit.rb"
@@ -8,13 +22,45 @@ require "app/sprites.rb"
 
 module App
   class Enemy < ::SpriteKit::Sprite
-    attr_accessor :speed, :type, :radius
+    attr_accessor :speed, :type, :radius, :score, :hit_box
 
     def initialize(**kwargs)
       super(**SPRITES[:target], **kwargs)
       @type = :enemy
       @angle ||= 0
+
+      @scale = @w / 32
     end
+
+    def hit_box
+      {
+        x: @x,
+        y: @y,
+        w: @w,
+        h: @h,
+      }
+    end
+
+    def hit_box_for_circle
+      offset_x = 7 * @scale + 2
+      offset_y = 7 * @scale + 2
+      diameter = (@w - (offset_x * 2))
+      {
+        x: @x + offset_x,
+        y: @y + offset_y,
+        w: diameter,
+        h: diameter,
+      }
+    end
+
+    def calc_score(player:, multiplier:)
+      distance = Geometry.distance(player, self)
+      ((@score + distance) * multiplier).round
+    end
+
+    # def hit_box
+    #   @hit_box
+    # end
 
     def update(mode)
       if mode == :endless
@@ -30,9 +76,33 @@ module App
     end
   end
 
+  class Powerup < Enemy
+    attr_accessor :powerup_type
+    def initialize(powerup_type:, **kwargs)
+      super(**SPRITES[powerup_type][:box], **kwargs)
+
+      @powerup_type = powerup_type
+      @type = :powerup
+    end
+
+    def hit_box
+      hash = super()
+      hash.x = hash.x + (1 * @scale)
+      hash.w = hash.w - (1 * @scale)
+
+      hash
+    end
+  end
+
   class Bow < ::SpriteKit::Sprite
     def initialize(**kwargs)
       super(**SPRITES[:bow], **kwargs)
+    end
+  end
+
+  class Platform < ::SpriteKit::Sprite
+    def initialize(**kwargs)
+      super(**SPRITES[:platform], **kwargs)
     end
   end
 
@@ -44,25 +114,30 @@ module App
 
       @arrow_speed ||= 7
       @bow_angle ||= 0
+      @power ||= 0
 
       @bow_offset = 48
       @bow = Bow.new(**kwargs, x: @x + @bow_offset, angle: @bow_angle)
 
+      @platform_offset = -@h + (@h / 4)
+      @platform = Platform.new(**kwargs, x: @x, y: @y + @platform_offset)
+
       reload
     end
 
-    def reload
-      random_arrow = ARROW_TYPES[:plain]
-      # random_arrow = ARROW_TYPES.values.sample
-      # random_arrow = ARROW_TYPES[:drill]
-      # random_arrow = ARROW_TYPES[:fire]
-      # random_arrow = ARROW_TYPES[:lightning]
-      # random_arrow = ARROW_TYPES[:ice]
-      @arrow = random_arrow.new(x: @x + @bow_offset, y: @y, w: @w, h: @h, angle: @bow_angle, speed: @arrow_speed)
+    def reload(arrow = ARROW_TYPES[:plain])
+      # arrow = ARROW_TYPES[:plain]
+      # arrow = ARROW_TYPES.values.sample
+      # arrow = ARROW_TYPES[:drill]
+      # arrow = ARROW_TYPES[:fire]
+      # arrow = ARROW_TYPES[:lightning]
+      # arrow = ARROW_TYPES[:ice]
+      @arrow = arrow.new(x: @x + @bow_offset, y: @y, w: @w, h: @h, angle: @bow_angle, speed: @arrow_speed)
     end
 
     def x=(val)
       @x = val
+      @platform.x = val
       @arrow.x = @bow_offset + val
       @bow.x = @bow_offset + val
     end
@@ -71,6 +146,7 @@ module App
       @y = val
       @arrow.y = val
       @bow.y = val
+      @platform.y = val + @platform_offset
     end
 
     def bow_angle=(val)
@@ -81,9 +157,10 @@ module App
 
     def prefab
       [
-        self,
+        @platform,
         @bow,
-        @arrow
+        @arrow,
+        self,
       ]
     end
   end
@@ -102,11 +179,13 @@ module App
     end
 
     def hit_box
-      {
-        **get_tip,
-        w: 2,
-        h: 2
-      }
+      tip = get_tip
+      tip.merge({
+        x: tip.x - 6,
+        y: tip.y - 4,
+        w: 8,
+        h: 8,
+      })
     end
 
     def shoot(power)
@@ -127,19 +206,18 @@ module App
       Math.sqrt((horizontal_velocity * horizontal_velocity) + (vertical_velocity * vertical_velocity))
     end
 
-    def get_tip
+    def get_tip(w: @w, h: @h)
       angle = @angle.to_radians
-      center_x = @x + (@w / 2)
-      center_y = @y + (@h / 2) - 1
+      center_x = @x + (w / 2)
+      center_y = @y + (h / 2) - 1
 
       # Distance from center to tip (front of arrow)
-      tip_x_offset = @w / 2
-      tip_y_offset = @h / 2
+      tip_x_offset = w / 2
+      tip_y_offset = h / 2
 
       # Calculate tip position from center using angle
       tip_x = center_x + Math.cos(angle) * tip_x_offset
       tip_y = center_y + Math.sin(angle) * tip_y_offset
-
       { x: tip_x, y: tip_y }
     end
 
@@ -188,6 +266,25 @@ module App
       @arrow_type = :lightning
       super(...)
     end
+
+    def hit_box
+      scale = (@w / 32)
+      w = @w - (12 * scale)
+      h = @h - (12 * scale)
+      tip = get_tip()
+      angle = @angle.to_radians
+      shift_x = Math.cos(angle) * (w / 2)
+      shift_y = Math.sin(angle) * (h / 2)
+      tip.merge({
+        x: tip.x - shift_x - (w / 2),
+        y: tip.y - shift_y - (h / 2),
+        w: w,
+        h: h,
+        anchor_x: 0.5,
+        anchor_y: 0.5,
+      })
+    end
+
   end
 
   class FireArrow < Arrow
@@ -203,6 +300,21 @@ module App
       super(...)
       @speed = 8
       @gravity = -1
+    end
+
+    def hit_box
+      w = 26
+      h = 26
+      tip = get_tip()
+      angle = @angle.to_radians
+      shift_x = Math.cos(angle) * (w / 2)
+      shift_y = Math.sin(angle) * (h / 2)
+      tip.merge({
+        x: tip.x - shift_x - (w / 2),
+        y: tip.y - shift_y - (h / 2),
+        w: w,
+        h: h,
+      })
     end
   end
 
@@ -234,14 +346,18 @@ module App
     end
 
     def hit_box
-      # Hit box of the ice arrow is 22x22 "circle", but we'll just calculate it as a square to make life easy.
-      tip = super()
-
+      scale = (@w / 32)
+      w = @w - (8 * scale)
+      h = @h - (8 * scale)
+      tip = get_tip()
+      angle = @angle.to_radians
+      shift_x = Math.cos(angle) * (w / 2)
+      shift_y = Math.sin(angle) * (h / 2)
       tip.merge({
-        w: 22,
-        h: 22,
-        x: tip.x - 22 - tip.w,
-        y: tip.y - 22 - tip.h,
+        x: tip.x - shift_x - (w / 2),
+        y: tip.y - shift_y - (h / 2),
+        w: w,
+        h: h,
         anchor_x: 0.5,
         anchor_y: 0.5,
       })
@@ -342,7 +458,7 @@ module App
       @sprite ||= SPRITES[:chain_lightning]
       @w ||= @sprite.source_w
       @h ||= @sprite.source_h
-      @lightning_radius ||= 12
+      @lightning_radius ||= 24 * Math::PI
       @anchor_x ||= 0.5
       @anchor_y ||= 0.5
       @active = true
@@ -401,11 +517,96 @@ module App
         hit_box: hit_box
       )
     end
+
+  end
+
+  class FloatingText < SpriteKit::Sprite
+    attr_label
+    attr_accessor :primitive_marker,
+                  :text,
+                  :r,
+                  :g,
+                  :b,
+                  :a
+
+    def initialize(tick_count:, **kwargs)
+      super(**kwargs)
+      @tick_count = tick_count
+      @primitive_marker = :label
+
+    end
+
+    def update(tick_count)
+      @max_y ||= @y + 60
+      perc = Easing.smooth_stop(
+                        start_at: @tick_count,
+                        end_at: @tick_count + 20,
+                        tick_count: tick_count,
+                        power: 5
+                     )
+
+      alpha_fade = Easing.smooth_stop(
+                      start_at: @tick_count + 20,
+                      end_at: @tick_count + 60,
+                      tick_count: tick_count,
+                      power: 5
+                    )
+
+
+      @y = @y.lerp(@max_y, perc)
+      @a = @a.lerp(0, alpha_fade)         # alpha -> 0 fade
+
+      if tick_count > @tick_count + 60
+        return nil
+      end
+
+      # @y += @frame_index
+      return true
+    end
+  end
+
+  class ScoreBoard < SpriteKit::Sprite
+    attr_accessor :prefab
+    attr_reader :score
+
+    def initialize(score:, **kwargs)
+      super(**kwargs)
+      @score = score
+
+      @label = {
+        x: @x,
+        y: @y,
+        anchor_x: 0.5,
+        anchor_y: 0.5,
+        **PALLETTE.white,
+        primitive_marker: :label,
+        text: @score
+      }
+
+      @background = {
+        **PALLETTE.black,
+        x: @x,
+        y: @y,
+        w: 300,
+        h: 50,
+        anchor_x: 0.5,
+        anchor_y: 0.5,
+        path: :solid
+      }
+
+      @prefab = [
+        @background,
+        @label
+      ]
+    end
+
+    def score=(val)
+      @score = val
+      @label.text = val
+    end
   end
 
   class PlayScene < SpriteKit::Scene
-    MAX_TARGETS = 5
-    MAX_POWERUPS = 8
     MODES = {
       normal: :normal,
       endless: :endless
@@ -415,7 +616,7 @@ module App
       :lightning,
       :fire,
       :drill,
-      :random
+      # :random
     ]
     MAX_TIME_IN_SECONDS = 20
 
@@ -426,58 +627,89 @@ module App
 
     def setup
       @player = Player.new(
-        **Layout.rect(row: Layout.row_count - 1, col: 0),
+        x: 25,
+        # y: Grid.h / 2 - 32,
+        y: 50,
         w: 64,
         h: 64,
         speed: 6
       )
+
+      @scoreboard_size = 150
+      @offset_x = 200
+      @offset_y = 50
+
 
       @elapsed_time = 0
       # @mouse_start = nil
       # @mouse_end = nil
       @restart = false
       @tick_count = 0
-      @enemies = generate_enemies
-      # @powerups = generate_powerups
+      @max_targets = 3
+      @max_powerups = 1
       @projectiles = {}
       @explosions = {}
       @chain_lightnings = {}
       @pause_screen = PauseScreen.new
       @game_over_screen = GameOverScreen.new
       @mode = MODES[:normal]
+      @powerbar = PowerBar.new
+
+      @multiplier = 1
+      @score = 0
+      @debug = false
+      @scoreboard = ScoreBoard.new(score: @score, x: Grid.w / 2, y: Grid.h - 50)
+
+      @floating_text_labels = {}
+      @palette = App::PALLETTE
+      @collideables = []
+      @powerups = []
+      @enemies = []
+      generate_enemies
+      generate_powerups
     end
 
-    def generate_powerups(powerups = [], max_powerups = MAX_POWERUPS)
+    def generate_powerups(max_powerups = @max_powerups)
       # sizes = [32, 32 * 2, 32 * 3]
-      # size = 64
-      size = 32
+      size = 48
+      score = 1_000
+      # size = 32
       speed = 300
-      # elapsed_time = ((@elapsed_time || 1000) / 1000).to_i
+      elapsed_time = ((@elapsed_time || 1000) / 1000).to_i
       # angles = [15, 30, 45, 60]
 
-      while powerups.length - 1 < max_powerups
-        angle = rand(45)
+      while @powerups.length - 1 < (max_powerups + (elapsed_time / 5).round)
         random_powerup = POWERUPS.sample
-
-
-        powerups << Powerup.new(
-          powerup: random_powerup,
-          x: Grid.w - 200 + rand(100) + 50,
-          y: 50,
-          speed: speed,
+        powerup = Powerup.new(
+          powerup_type: random_powerup,
+          x: @offset_x + rand(Grid.w - @offset_x - size),
+          y: @offset_y + rand(Grid.h - @scoreboard_size - @offset_y - size),
           w: size,
           h: size,
-          angle: 360 - angle,
+          score: (score.idiv(size) ** 2) * 2
+          # angle: 360 - angle,
         )
+
+        next if Geometry.find_intersect_rect(powerup, @collideables)
+
+        @collideables << powerup
+        @powerups << powerup
       end
-      powerups
     end
 
-    def generate_enemies(enemies = [], max_targets = MAX_TARGETS)
+    def generate_enemies(max_targets = nil)
+      if !max_targets
+        max_targets = @max_targets
+      end
+      score = 1_000
       sizes = [32, 32 * 2, 32 * 3]
+      # sizes = [32 * 6]
+
+      # sizes = [128]
       speeds = [150, 200, 250]
       elapsed_time = ((@elapsed_time || 1000) / 1000).to_i
-      while enemies.length - 1 < ((max_targets + (elapsed_time / 2)))
+      while @enemies.length - 1 < ((max_targets + (elapsed_time / 5).round))
+      # while enemies.length < max_targets
         rand_size = sizes.sample
         # rand_speed = (rand_size / (rand_size * 2)) ** 2
         rand_speed = speeds.sample
@@ -485,18 +717,21 @@ module App
         # min angle of 8, max angle of 75
         # angle = rand(67) + 8
 
-        enemies << Enemy.new(
-          x: 200 + rand(Grid.w - 200 - rand_size),
-          y: 50 + rand(Grid.h - 50 - rand_size),
-          speed: rand_speed,
+        enemy = Enemy.new(
+          x: @offset_x + rand(Grid.w - @offset_x - rand_size),
+          y: @offset_y + rand(Grid.h - @scoreboard_size - @offset_y - rand_size),
           w: rand_size,
           h: rand_size,
+          speed: rand_speed,
+          score: (score.idiv(rand_size) ** 2) * 2
           # angle: 360 - angle,
         )
-      end
 
-      enemies.sort_by { |t| t.x + Grid.h + t.y }
-      enemies
+        next if Geometry.find_intersect_rect(enemy, @collideables)
+
+        @collideables << enemy
+        @enemies << enemy
+      end
     end
 
     def tick(args)
@@ -512,8 +747,10 @@ module App
         @tick_count += 1
       end
 
-      @outputs.debug << sprintf("%0.02f", @elapsed_time / 1000).gsub(".", ":")
+      @outputs.debug << sprintf("%0.02f", @elapsed_time / 1000) #.gsub(".", ":")
       @outputs.debug << @tick_count.to_s
+      @outputs.debug << "SCORE: #{@score}"
+      @outputs.debug << "MULTIPLIER: #{@multiplier}"
       @tick_start = Time.now
       super(args)
     end
@@ -530,6 +767,10 @@ module App
         @paused = !@paused
       end
 
+      if @keyboard.key_down.period
+        @debug = !@debug
+      end
+
       if @paused
         return
       end
@@ -543,7 +784,7 @@ module App
       end
 
       if @mouse.up
-        if @player.power && @player.power > 0
+        if @player.power && @player.power > 1
           @projectiles[@player.arrow.object_id] = @player.arrow
           @player.arrow.shoot(@player.power)
           @player.reload
@@ -552,10 +793,12 @@ module App
         @mouse_end = nil
       end
 
+      y_max = Grid.h - @player.h - 25
+      y_min = 50
       if @keyboard.down
-        @player.y -= @player.speed
+        @player.y = (@player.y - @player.speed).clamp(y_min, y_max)
       elsif @keyboard.up
-        @player.y += @player.speed
+        @player.y = (@player.y + @player.speed).clamp(y_min, y_max)
       # elsif @keyboard.key_down.down
       #   @player.y -= @player.speed
       # elsif @keyboard.key_down.up
@@ -568,8 +811,8 @@ module App
         return
       end
 
-      generate_enemies(@enemies)
-      # generate_powerups(@powerups)
+      generate_enemies
+      generate_powerups
 
       if @mouse_start && @mouse_end
         # @outputs.debug << "Mouse Start: #{@mouse_start}"
@@ -613,28 +856,64 @@ module App
         projectile.update
 
         # This is fine to do becaus ethe array doesn't get altered.
-        hit_box = projectile.hit_box
+        # hit_box = projectile.hit_box
+        # hit_enemy = Geometry.find_intersect_rect(hit_box, @enemies)
 
-        # if projectile.type == :arrow && projectile.arrow_type == :ice_arrow
-        #   hit_enemy = Geometry.find_intersect_rect(hit_box, enemies_and_powerups)
-        # else
-          hit_enemy = Geometry.find_intersect_rect(hit_box, @enemies)
-        # end
+
+        circle_hit_box = App.rect_to_circle(projectile.hit_box)
+        hit_enemies = @collideables.select do |enemy|
+          return false if !enemy
+
+          if enemy.type == :powerup
+            Geometry.intersect_rect?(projectile.hit_box, enemy.hit_box)
+          else
+            Geometry.intersect_circle?(circle_hit_box, App.rect_to_circle(enemy.hit_box_for_circle))
+          end
+        end.sort_by(&:x).sort_by(&:y)
+        hit_enemy = hit_enemies[0]
+
 
         if hit_enemy
+          score = hit_enemy.calc_score(player: @player, multiplier: @multiplier)
+          @score += score
+          @scoreboard.score = @score
+          floating_text = FloatingText.new(
+            **@palette.green,
+            text: "+#{score}",
+            x: hit_enemy.x,
+            y: hit_enemy.y,
+            tick_count: @tick_count
+          )
+
+          @floating_text_labels[floating_text.object_id] = floating_text
+          @multiplier *= 2
+
+          if @multiplier > 64
+            @multiplier = 64
+          end
+
+
           if projectile.type == :arrow && (projectile.arrow_type == :drill || projectile.arrow_type == :ice_shard)
             # Don't delete drill arrows.
           else
             @projectiles.delete(projectile.object_id)
           end
 
-          if hit_enemy.type == :enemy
-            @enemies.delete(hit_enemy)
+          if hit_enemy #.type == :enemy
+            if hit_enemy.type == :powerup
+              powerup = @powerups.delete(hit_enemy)
+              @player.reload(ARROW_TYPES[powerup.powerup_type]) if powerup
+
+            elsif hit_enemy.type == :enemy
+              @enemies.delete(hit_enemy)
+            end
+
+            @collideables.delete(hit_enemy)
 
             if projectile.arrow_type == :fire
               explosion = Explosion.new(
-                x: hit_box.x,
-                y: hit_box.y,
+                x: circle_hit_box.x,
+                y: circle_hit_box.y,
                 anchor_x: 0.5,
                 anchor_y: 0.5,
                 exploded_at: @tick_count
@@ -663,16 +942,20 @@ module App
           end
         end
 
-        if projectile.y < 0
+        if projectile.y < -50
           @projectiles.delete(projectile.object_id)
+
+          if projectile.type == :arrow && projectile.arrow_type != :ice_shard
+            @multiplier = 1
+          end
         end
       end
 
-      enemies_to_delete = []
+      collideables_to_delete = []
 
       Array.each(@explosions.values) do |explosion|
         explosion.update(@tick_count)
-        Array.each(Geometry.find_all_intersect_rect(explosion, @enemies)) { |enemy| enemies_to_delete << enemy }
+        Array.each(Geometry.find_all_intersect_rect(explosion, @collideables)) { |enemy| collideables_to_delete << enemy }
         if explosion.frame_index == nil
           @explosions.delete(explosion.object_id)
         end
@@ -689,47 +972,92 @@ module App
           next
         end
 
-        enemy = @enemies.find do |enemy|
-          anchored_enemy = enemy.dup.tap do |spr|
+        collideable = @collideables.find do |collideable|
+          anchored_collideable = collideable.dup.tap do |spr|
             spr.anchor_x = 0.5
             spr.anchor_y = 0.5
             spr.radius = 0
           end
-          Geometry.intersect_circle?(chain_lightning.hit_box, anchored_enemy)
+          Geometry.intersect_circle?(chain_lightning.hit_box, anchored_collideable)
         end
         # enemy = Geometry.find_intersect_rect(chain_lightning.hit_box, @enemies)
 
-        if enemy
-          enemies_to_delete << enemy
-          new_chain_lightning = chain_lightning.jump_to(enemy, @tick_count)
+        if collideable
+          collideables_to_delete << collideable
+          new_chain_lightning = chain_lightning.jump_to(collideable, @tick_count)
           @chain_lightnings[new_chain_lightning.object_id] = new_chain_lightning
         end
 
         chain_lightning.active = false
       end
 
-      update_enemies(enemies_to_delete)
+      update_enemies(collideables_to_delete)
+
+      Array.each(@floating_text_labels.values) do |label|
+        if label.update(@tick_count) == nil
+          @floating_text_labels.delete(label.object_id)
+        end
+      end
     end
 
-    def update_enemies(enemies_to_delete)
+    def update_enemies(collideables_to_delete)
       Array.each(@enemies) do |spr|
         spr.update(@mode)
 
-        if @mode == MODES.endless
-          enemies_to_delete << spr if spr.x <= -50 || spr.y > Grid.h + 50
-        end
+        # if @mode == MODES.endless
+        #   collideables_to_delete << spr if spr.x <= -50 || spr.y > Grid.h + 50
+        # end
       end
 
-      Array.each(enemies_to_delete) { |spr| @enemies.delete(spr) }
+      Array.each(collideables_to_delete) do |spr|
+        @collideables.delete(spr)
+      end
     end
 
     def render
       sprites = @player.prefab
-        .concat(@enemies)
-        # .concat(@powerups)
+        .concat(@collideables)
         .concat(@projectiles.values)
         .concat(@explosions.values)
         .concat(@chain_lightnings.values)
+        .concat(@floating_text_labels.values)
+        .concat(@scoreboard.prefab)
+
+      if @player.power > 0
+        @powerbar.power = @player.power
+        @powerbar.angle = @player.bow.angle
+        @powerbar.update(@mouse_start)
+        sprites.concat(@powerbar.prefab)
+      else
+
+      end
+
+      if @debug
+        sprites
+          .concat(@collideables.map do |collideable|
+
+            if collideable.type == :enemy
+              hit_box = collideable.hit_box_for_circle
+              # no idea why any of this math works :shrug:
+              w = hit_box.w * 1.5
+              h = hit_box.h * 1.5
+              hit_box.merge({
+                x: hit_box.x - (w / 6),
+                y: hit_box.y - (h / 6),
+                w: w,
+                h: h,
+                **SPRITES[:debug_circle]
+              })
+            else
+              hit_box = collideable.hit_box
+              SpriteKit::Primitives.borders(hit_box, color: @palette.red).values
+            end
+          end.flatten)
+          .concat(@projectiles.values.map { |projectile| SpriteKit::Primitives.borders(projectile.hit_box, color: @palette.red).values }.flatten)
+          .concat(@collideables.map { |collideable|
+            { primitive_marker: :label, text: collideable.calc_score(player: @player, multiplier: @multiplier), x: collideable.x + (collideable.w / 2), anchor_x: 0.5, y: collideable.y + collideable.h + 20 }
+          })
+      end
       draw_buffer.primitives.concat(sprites)
 
       if @paused
@@ -743,6 +1071,60 @@ module App
 
     def game_over?(time)
       (time / 1000) > MAX_TIME_IN_SECONDS
+    end
+  end
+
+  class PowerBar < ::SpriteKit::Sprite
+    attr_accessor :power, :angle, :prefab
+
+    def initialize(power: 0, **kwargs)
+      super(**kwargs)
+
+      @power = power
+      @angle = 0
+
+      update(nil)
+    end
+
+    def update(mouse)
+      if mouse == nil
+        return @prefab = []
+      end
+
+      @x = mouse.x
+      @y = mouse.y
+      bar_h = 160
+      y = @y - (bar_h / 2)
+
+      @bar = {
+        x: @x,
+        y: y,
+        w: 24,
+        h: bar_h,
+        path: :solid,
+        **PALLETTE.green,
+      }
+
+      size_px = 24
+      @power_label = {
+        x: @x + @bar.w,
+        y: y + size_px,
+        text: "#{@power}",
+        size_px: size_px,
+        primitive_marker: :label,
+        **PALLETTE.black,
+      }
+
+      @angle_label = @power_label.merge({
+        y: @power_label.y + @power_label.size_px + 10,
+        text: "#{@angle}°"
+      })
+
+      @prefab = [
+        @bar,
+        @power_label,
+        @angle_label,
+      ]
     end
   end
 
@@ -811,6 +1193,17 @@ module App
     end
   end
 
+  class SpritesheetScene < ::SpriteKit::Scenes::SpritesheetScene
+    def initialize(...)
+      super(...)
+      @state.tile_selection = {
+        w: 32, h: 32,
+        row_gap: 0, column_gap: 0,
+        offset_x: 0, offset_y: 0,
+      }
+    end
+  end
+
   class PauseScreen < ::SpriteKit::Sprite
     attr_accessor :prefab
 
@@ -876,7 +1269,7 @@ module App
         scenes: {
           # title_scene: TitleScene,
           play_scene: PlayScene,
-          spritesheet_scene: SpriteKit::Scenes::SpritesheetScene
+          spritesheet_scene: SpritesheetScene
         }
       )
     end
@@ -905,6 +1298,7 @@ end
 def tick(args)
   $game ||= App::Game.new
   $game.tick(args)
+
   args.outputs.primitives.concat(GTK.framerate_diagnostics_primitives.map do |primitive|
     primitive.x = Grid.w - 500 + primitive.x
     primitive

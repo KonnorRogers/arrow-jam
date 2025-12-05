@@ -33,6 +33,10 @@
    { "name": "extra-arrow", "opacity": 255, "blendMode": "normal" },
    { "name": "fire-arrow", "opacity": 255, "blendMode": "normal" },
    { "name": "ice arrow", "opacity": 255, "blendMode": "normal" },
+   { "name": "rocket-platform" },
+   { "name": "platform", "group": "rocket-platform", "opacity": 255, "blendMode": "normal" },
+   { "name": "rockets", "group": "rocket-platform", "opacity": 255, "blendMode": "normal" },
+   { "name": "shadow", "group": "rocket-platform", "opacity": 255, "blendMode": "normal" },
    { "name": "animated-shoot" },
    { "name": "player", "group": "animated-shoot", "opacity": 255, "blendMode": "normal" },
    { "name": "bow", "group": "animated-shoot", "opacity": 255, "blendMode": "normal" },
@@ -41,7 +45,8 @@
    { "name": "head", "group": "goose", "opacity": 255, "blendMode": "normal" },
    { "name": "body", "group": "goose", "opacity": 255, "blendMode": "normal" },
    { "name": "left-wing", "group": "goose", "opacity": 255, "blendMode": "normal" },
-   { "name": "right-wing", "group": "goose", "opacity": 255, "blendMode": "normal" }
+   { "name": "right-wing", "group": "goose", "opacity": 255, "blendMode": "normal" },
+   { "name": "ice arrow", "opacity": 255, "blendMode": "normal" }
   ],
   "slices": [
   ]
