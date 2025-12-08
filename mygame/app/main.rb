@@ -566,16 +566,18 @@ module App
   end
 
   class ScoreBoard < SpriteKit::Sprite
-    attr_accessor :prefab
+    attr_accessor :prefab, :multiplier
     attr_reader :score
 
     def initialize(score:, **kwargs)
       super(**kwargs)
+      @total_time = 20_000
+      @elapsed_time = 0
       @score = score
 
-      @label = {
+      @score_label = {
         x: @x,
-        y: @y,
+        y: @y - 42,
         anchor_x: 0.5,
         anchor_y: 0.5,
         **PALLETTE.white,
@@ -583,26 +585,45 @@ module App
         text: @score
       }
 
+      @timer_label = @score_label.merge({
+        y: @score_label.y + 32,
+        text: time_left
+      })
+
       @background = {
-        **PALLETTE.black,
         x: @x,
-        y: @y,
+        y: @y - 25,
         w: 300,
-        h: 50,
+        h: 100,
         anchor_x: 0.5,
         anchor_y: 0.5,
-        path: :solid
+        **SPRITES[:scoreboard]
       }
 
       @prefab = [
         @background,
-        @label
+        @score_label,
+        @timer_label
+        # @multiplier_label,
       ]
     end
 
     def score=(val)
       @score = val
-      @label.text = val
+      @score_label.text = val
+    end
+
+    def elapsed_time=(val)
+      @elapsed_time = val
+      @timer_label.text = time_left
+    end
+
+    def time_left
+      time = @total_time - @elapsed_time
+
+      return "0.00" if time < 0
+
+      sprintf("%0.02f", time / 1000)
     end
   end
 
@@ -658,7 +679,7 @@ module App
       @multiplier = 1
       @score = 0
       @debug = false
-      @scoreboard = ScoreBoard.new(score: @score, x: Grid.w / 2, y: Grid.h - 50)
+      @scoreboard = ScoreBoard.new(score: @score, x: Grid.w / 2, y: Grid.h - 32)
 
       @floating_text_labels = {}
       @palette = App::PALLETTE
@@ -678,7 +699,7 @@ module App
       elapsed_time = ((@elapsed_time || 1000) / 1000).to_i
       # angles = [15, 30, 45, 60]
 
-      while @powerups.length - 1 < (max_powerups + (elapsed_time / 5).round)
+      while @powerups.length < (max_powerups + (elapsed_time / 5).round)
         random_powerup = POWERUPS.sample
         powerup = Powerup.new(
           powerup_type: random_powerup,
@@ -708,7 +729,7 @@ module App
       # sizes = [128]
       speeds = [150, 200, 250]
       elapsed_time = ((@elapsed_time || 1000) / 1000).to_i
-      while @enemies.length - 1 < ((max_targets + (elapsed_time / 5).round))
+      while @enemies.length < ((max_targets + (elapsed_time / 3).round))
       # while enemies.length < max_targets
         rand_size = sizes.sample
         # rand_speed = (rand_size / (rand_size * 2)) ** 2
@@ -747,10 +768,12 @@ module App
         @tick_count += 1
       end
 
-      @outputs.debug << sprintf("%0.02f", @elapsed_time / 1000) #.gsub(".", ":")
-      @outputs.debug << @tick_count.to_s
-      @outputs.debug << "SCORE: #{@score}"
-      @outputs.debug << "MULTIPLIER: #{@multiplier}"
+      if @debug
+        @outputs.debug << sprintf("%0.02f", @elapsed_time / 1000) #.gsub(".", ":")
+        @outputs.debug << @tick_count.to_s
+        @outputs.debug << "SCORE: #{@score}"
+        @outputs.debug << "MULTIPLIER: #{@multiplier}"
+      end
       @tick_start = Time.now
       super(args)
     end
@@ -835,17 +858,20 @@ module App
 
           @player.power = power
           # distance =
-          @outputs.lines << {
-            x: @mouse_start.x,
-            x2: @mouse_end.x,
-            y: @mouse_start.y,
-            y2: @mouse_end.y,
-            angle: angle,
-            r: 255,
-            b: 0,
-            g: 0,
-            a: 255,
-          }
+
+          if @debug
+            @outputs.lines << {
+              x: @mouse_start.x,
+              x2: @mouse_end.x,
+              y: @mouse_start.y,
+              y2: @mouse_end.y,
+              angle: angle,
+              r: 255,
+              b: 0,
+              g: 0,
+              a: 255,
+            }
+          end
           @player.bow_angle = angle
         end
       else
@@ -1015,6 +1041,8 @@ module App
     end
 
     def render
+      @scoreboard.elapsed_time = @elapsed_time
+
       sprites = @player.prefab
         .concat(@collideables)
         .concat(@projectiles.values)
@@ -1096,20 +1124,29 @@ module App
       bar_h = 160
       y = @y - (bar_h / 2)
 
+      power_percentage = @power / 100
       @bar = {
         x: @x,
         y: y,
-        w: 24,
+        w: 64,
+        **SPRITES.powerbar,
+        h: bar_h * power_percentage,
+        source_h: SPRITES.powerbar.source_h * power_percentage
+      }
+
+      @bar_outline = {
+        x: @x,
+        y: y,
+        w: 64,
         h: bar_h,
-        path: :solid,
-        **PALLETTE.green,
+        **SPRITES.powerbar_outline
       }
 
       size_px = 24
       @power_label = {
         x: @x + @bar.w,
         y: y + size_px,
-        text: "#{@power}",
+        text: "#{@power}%",
         size_px: size_px,
         primitive_marker: :label,
         **PALLETTE.black,
@@ -1122,6 +1159,7 @@ module App
 
       @prefab = [
         @bar,
+        @bar_outline,
         @power_label,
         @angle_label,
       ]
@@ -1295,14 +1333,20 @@ module App
   end
 end
 
+def boot(args)
+  args.state = {}
+end
+
 def tick(args)
   $game ||= App::Game.new
   $game.tick(args)
 
-  args.outputs.primitives.concat(GTK.framerate_diagnostics_primitives.map do |primitive|
-    primitive.x = Grid.w - 500 + primitive.x
-    primitive
-  end)
+  if @debug
+    args.outputs.primitives.concat(GTK.framerate_diagnostics_primitives.map do |primitive|
+      primitive.x = Grid.w - 500 + primitive.x
+      primitive
+    end)
+  end
 end
 
 def reset

@@ -5,9 +5,9 @@
 Lets just finish the damn jam. Make targets appear randomly, you get a multiplier for consecutive target hits.
 
 - [x] - Score based on size + distance + consecutive hit multiplier
-- [ ] - Create a proper score "shower"
+- [x] - Create a proper score "shower"
 - [ ] - High score??
-- [ ] - Show a power bar
+- [x] - Show a power bar
 - [ ] - Pause button? Maybe?
 - [x] - Show ~~scissor lift~~ rocket platform to move up / down
 

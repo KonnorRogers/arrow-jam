@@ -1,10 +1,10 @@
 { "frames": {
    "bow-1-0.aseprite": {
-    "frame": { "x": 0, "y": 0, "w": 256, "h": 256 },
+    "frame": { "x": 0, "y": 0, "w": 512, "h": 512 },
     "rotated": false,
     "trimmed": false,
-    "spriteSourceSize": { "x": 0, "y": 0, "w": 256, "h": 256 },
-    "sourceSize": { "w": 256, "h": 256 },
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 512, "h": 512 },
+    "sourceSize": { "w": 512, "h": 512 },
     "duration": 500
    }
  },
@@ -13,13 +13,17 @@
   "version": "1.x-dev",
   "image": "bow-1.png",
   "format": "RGBA8888",
-  "size": { "w": 256, "h": 256 },
+  "size": { "w": 512, "h": 512 },
   "scale": "1",
   "frameTags": [
   ],
   "layers": [
+   { "name": "background", "opacity": 255, "blendMode": "normal" },
    { "name": "shadow", "opacity": 255, "blendMode": "normal" },
    { "name": "axe-arrow", "opacity": 255, "blendMode": "normal" },
+   { "name": "background-group" },
+   { "name": "background", "group": "background-group", "opacity": 255, "blendMode": "normal" },
+   { "name": "highlights", "group": "background-group", "opacity": 255, "blendMode": "normal" },
    { "name": "details", "opacity": 255, "blendMode": "normal" },
    { "name": "target", "opacity": 255, "blendMode": "normal" },
    { "name": "generic-enemy", "opacity": 255, "blendMode": "normal" },
@@ -36,7 +40,8 @@
    { "name": "rocket-platform" },
    { "name": "platform", "group": "rocket-platform", "opacity": 255, "blendMode": "normal" },
    { "name": "rockets", "group": "rocket-platform", "opacity": 255, "blendMode": "normal" },
-   { "name": "shadow", "group": "rocket-platform", "opacity": 255, "blendMode": "normal" },
+   { "name": "palette", "group": "rocket-platform", "opacity": 255, "blendMode": "normal" },
+   { "name": "powerbar", "group": "rocket-platform", "opacity": 255, "blendMode": "normal" },
    { "name": "animated-shoot" },
    { "name": "player", "group": "animated-shoot", "opacity": 255, "blendMode": "normal" },
    { "name": "bow", "group": "animated-shoot", "opacity": 255, "blendMode": "normal" },
@@ -46,7 +51,11 @@
    { "name": "body", "group": "goose", "opacity": 255, "blendMode": "normal" },
    { "name": "left-wing", "group": "goose", "opacity": 255, "blendMode": "normal" },
    { "name": "right-wing", "group": "goose", "opacity": 255, "blendMode": "normal" },
-   { "name": "ice arrow", "opacity": 255, "blendMode": "normal" }
+   { "name": "ice arrow", "opacity": 255, "blendMode": "normal" },
+   { "name": "ui-elements" },
+   { "name": "outline", "group": "ui-elements", "opacity": 255, "blendMode": "normal" },
+   { "name": "base", "group": "ui-elements", "opacity": 255, "blendMode": "normal" },
+   { "name": "highlights", "group": "ui-elements", "opacity": 255, "blendMode": "normal" }
   ],
   "slices": [
   ]
