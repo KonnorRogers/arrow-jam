@@ -70,6 +70,13 @@ module App
       source_w: 17,
       path: SPRITE_PATH,
     },
+    astronaut: {
+      source_x: 80,
+      source_y: 400,
+      source_h: 16,
+      source_w: 16,
+      path: SPRITE_PATH,
+    },
     player: {
       source_x: 48,
       source_y: 144 + 256,

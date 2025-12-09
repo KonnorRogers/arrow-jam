@@ -110,7 +110,7 @@ module App
     attr_accessor :speed, :arrow, :power, :bow
 
     def initialize(**kwargs)
-      super(**SPRITES[:player], **kwargs)
+      super(**SPRITES[:astronaut], **kwargs)
 
       @arrow_speed ||= 7
       @bow_angle ||= 0
@@ -639,7 +639,8 @@ module App
       :drill,
       # :random
     ]
-    MAX_TIME_IN_SECONDS = 20
+    # MAX_TIME_IN_SECONDS = 20
+    MAX_TIME_IN_SECONDS = 1
 
     def initialize(...)
       super(...)
@@ -723,7 +724,7 @@ module App
         max_targets = @max_targets
       end
       score = 1_000
-      sizes = [32, 32 * 2, 32 * 3]
+      sizes = [32 * 2, 32 * 3]
       # sizes = [32 * 6]
 
       # sizes = [128]
@@ -968,11 +969,13 @@ module App
           end
         end
 
-        if projectile.y < -50
+        if projectile.y < -50 || projectile.y > Grid.h + 1000 || projectile.x < -500 || projectile.x > Grid.w + 400
           @projectiles.delete(projectile.object_id)
 
-          if projectile.type == :arrow && projectile.arrow_type != :ice_shard
-            @multiplier = 1
+          if projectile.type == :arrow
+            if projectile.arrow_type != :ice_shard && projectile.arrow_type != :drill
+              @multiplier = 1
+            end
           end
         end
       end
@@ -1212,7 +1215,12 @@ module App
         a: 255
       }
 
+      @score_label = label.merge({
+        text: "Score: ",
+        y: label.y + (label_text_size / 2),
+      })
       @labels = [
+        @score_label,
         label.merge({
           text: "Game Over."
         }),
