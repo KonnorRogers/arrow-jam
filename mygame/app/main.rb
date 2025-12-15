@@ -1,26 +1,9 @@
+require "vendor/high_score.rb"
+
 module App
-  FPS = 60
-  DELTA_TIME = 1 / FPS
-
-  PALLETTE = {
-    red: { r: 255, b: 0, g: 0, a: 255 },
-    black: { r: 0, b: 0, g: 0, a: 255 },
-    white: { r: 255, b: 255, g: 255, a: 255 },
-    green: { r: 0, b: 0, g: 128, a: 255 }
-  }
-
-  def self.rect_to_circle(rect)
-    radius = Math.sqrt(rect.w ** 2 + rect.h ** 2) / 2
-    x = rect.x + (rect.w / 2)
-    y = rect.y + (rect.h / 2)
-    return {x: x, y: y, radius: radius}
+  class Tile < ::SpriteKit::Sprite
   end
-end
 
-require "vendor/sprite_kit/sprite_kit.rb"
-require "app/sprites.rb"
-
-module App
   class Enemy < ::SpriteKit::Sprite
     attr_accessor :speed, :type, :radius, :score, :hit_box
 
@@ -120,7 +103,7 @@ module App
       @bow = Bow.new(**kwargs, x: @x + @bow_offset, angle: @bow_angle)
 
       @platform_offset = -@h + (@h / 4)
-      @platform = Platform.new(**kwargs, x: @x, y: @y + @platform_offset)
+      @platform = Platform.new(**kwargs, x: @x - 4, y: @y + @platform_offset)
 
       reload
     end
@@ -639,11 +622,12 @@ module App
       :drill,
       # :random
     ]
-    # MAX_TIME_IN_SECONDS = 20
-    MAX_TIME_IN_SECONDS = 1
+    MAX_TIME_IN_SECONDS = 20
+    # MAX_TIME_IN_SECONDS = 1
 
     def initialize(...)
       super(...)
+
       setup
     end
 
@@ -758,6 +742,8 @@ module App
 
     def tick(args)
       @outputs = args.outputs
+      setup_grid(@outputs)
+
       if @restart
         setup
       end
@@ -777,6 +763,13 @@ module App
       end
       @tick_start = Time.now
       super(args)
+
+      if @debug
+        args.outputs.primitives.concat(GTK.framerate_diagnostics_primitives.map do |primitive|
+          primitive.x = Grid.w - 500 + primitive.x
+          primitive
+        end)
+      end
     end
 
     def input
@@ -909,7 +902,8 @@ module App
             text: "+#{score}",
             x: hit_enemy.x,
             y: hit_enemy.y,
-            tick_count: @tick_count
+            tick_count: @tick_count,
+            blendmode_enum: 2,
           )
 
           @floating_text_labels[floating_text.object_id] = floating_text
@@ -1044,9 +1038,11 @@ module App
     end
 
     def render
+      render_background
       @scoreboard.elapsed_time = @elapsed_time
 
-      sprites = @player.prefab
+      sprites = [@background_sprite]
+        .concat(@player.prefab)
         .concat(@collideables)
         .concat(@projectiles.values)
         .concat(@explosions.values)
@@ -1094,6 +1090,7 @@ module App
       if @paused
         draw_buffer.primitives.concat(@pause_screen.prefab)
       elsif game_over?(@elapsed_time)
+        @game_over_screen.score = @score
         draw_buffer.primitives.concat(@game_over_screen.prefab)
         # Game over.
       else
@@ -1102,6 +1099,81 @@ module App
 
     def game_over?(time)
       (time / 1000) > MAX_TIME_IN_SECONDS
+    end
+
+    def setup_grid(outputs)
+      if @background_sprites == nil
+        @background_sprites = []
+        tile_size = (16 * 2)
+        rt_size =  tile_size * 3
+        tiles = [
+          :tile_1,
+          :tile_2,
+          :tile_3,
+          :tile_4,
+          :tile_5,
+          :tile_6,
+          :tile_7,
+          :tile_8,
+          :tile_9
+        ]
+
+        @background_tile = outputs[:background_tile].tap do |tile|
+          tile.w = rt_size
+          tile.h = rt_size
+          tile.transient!
+        end
+
+        3.times do |x|
+          tile_x_index = x % 3
+          3.times do |y|
+            tile_y_index = y % 3
+            tile_index = (tile_x_index * 3) + tile_y_index
+            tile = tiles[tile_index]
+
+            @background_tile.sprites << STEEL_TILES[tile].merge({
+              x: x * tile_size,
+              y: y * tile_size,
+              w: tile_size,
+              h: tile_size,
+              a: 255 * 0.90
+            })
+          end
+        end
+
+        (Grid.w / rt_size).ceil.times do |x|
+          (Grid.h / rt_size).ceil.times do |y|
+            @background_sprites << Tile.new(
+              path: :background_tile,
+              x: x * rt_size,
+              y: y * rt_size,
+              w: rt_size,
+              h: rt_size,
+              a: 255 * 0.80
+            )
+          end
+        end
+      end
+    end
+
+    def render_background
+      if @background == nil
+        @background_sprite = {
+          w: Grid.w,
+          h: Grid.h,
+          x: 0,
+          y: 0,
+          path: :background
+        }
+        @background = @outputs[:background]
+        @background.w = Grid.w
+        @background.h = Grid.h
+        @background.background_color = [255, 255, 255, 255]
+        @background.transient!
+        # puts @background_sprites
+        @background.sprites.concat(@background_sprites)
+
+      end
     end
   end
 
@@ -1170,7 +1242,7 @@ module App
   end
 
   class GameOverScreen < ::SpriteKit::Sprite
-    attr_accessor :prefab
+    attr_accessor :prefab, :score
 
     def initialize(...)
       super(...)
@@ -1217,7 +1289,7 @@ module App
 
       @score_label = label.merge({
         text: "Score: ",
-        y: label.y + (label_text_size / 2),
+        y: label.y + (label_text_size),
       })
       @labels = [
         @score_label,
@@ -1236,6 +1308,11 @@ module App
         @container,
         @label_background,
       ].concat(@labels)
+    end
+
+    def score=(val)
+      @score_label.text = "Score: #{val}"
+      @score = val
     end
   end
 
@@ -1340,25 +1417,3 @@ module App
     end
   end
 end
-
-def boot(args)
-  args.state = {}
-end
-
-def tick(args)
-  $game ||= App::Game.new
-  $game.tick(args)
-
-  if @debug
-    args.outputs.primitives.concat(GTK.framerate_diagnostics_primitives.map do |primitive|
-      primitive.x = Grid.w - 500 + primitive.x
-      primitive
-    end)
-  end
-end
-
-def reset
-  $game = nil
-end
-
-$gtk.reset

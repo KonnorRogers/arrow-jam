@@ -182,6 +182,29 @@ module App
       source_h: 32,
       source_w: 72,
       path: SPRITE_PATH
-    }
+    },
   }
+
+  STEEL_TILES = {}
+end
+
+steel_tile_x_start = 352
+steel_tile_y_start = 240
+steel_tile_size = 16
+
+3.times do |x|
+  tile_x_index = x % 3
+  3.times do |y|
+    tile_y_index = y % 3
+    tile_index = (tile_x_index * 3) + tile_y_index + 1
+    key = "tile_#{tile_index}".to_sym
+    hash = {
+      source_x: steel_tile_x_start + (x * steel_tile_size),
+      source_y: steel_tile_y_start + (y * steel_tile_size),
+      source_w: steel_tile_size,
+      source_h: steel_tile_size,
+      path: App::SPRITE_PATH
+    }
+    App::STEEL_TILES[key] = hash
+  end
 end
