@@ -1,3 +1,24 @@
+module App
+  FPS = 60
+  DELTA_TIME = 1 / FPS
+
+  PALLETTE = {
+    red: { r: 255, b: 0, g: 0, a: 255 },
+    black: { r: 0, b: 0, g: 0, a: 255 },
+    white: { r: 255, b: 255, g: 255, a: 255 },
+    green: { r: 0, b: 0, g: 128, a: 255 }
+  }
+
+  def self.rect_to_circle(rect)
+    radius = Math.sqrt(rect.w ** 2 + rect.h ** 2) / 2
+    x = rect.x + (rect.w / 2)
+    y = rect.y + (rect.h / 2)
+    return {x: x, y: y, radius: radius}
+  end
+end
+
+require "vendor/sprite_kit/sprite_kit.rb"
+require "app/sprites.rb"
 require "vendor/high_score.rb"
 
 module App
@@ -1417,3 +1438,14 @@ module App
     end
   end
 end
+
+def tick(args)
+  $game ||= App::Game.new
+  $game.tick(args)
+end
+
+def reset
+  $game = nil
+end
+
+$gtk.reset

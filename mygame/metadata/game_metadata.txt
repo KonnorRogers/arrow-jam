@@ -2,7 +2,7 @@
 devid=konnorrogers
 devtitle=Konnor Rogers
 gameid=mygame
-gametitle=Hit the dang target
+gametitle=Hit the Dang Target
 version=0.1
 icon=metadata/icon.png
 
