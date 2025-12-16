@@ -9,6 +9,12 @@ cd ./arrow-jam
 ./dragonruby
 ```
 
+## Attributions
+
+- `./mygame/sounds/background-music(-converted).wav` - 128 BPM Industrial Glitch Loop #15711 (WAV) by looplicator -- https://freesound.org/s/836376/ -- License: Creative Commons 0
+- `./mygame/ice-shatter.wav` - Glass Break - Medium Jar by RoganMcDougald -- https://freesound.org/s/260434/ -- License: Attribution 3.0
+- `./mygame/sounds/drill.(mp4|wav)` - Drill1 by theshaggyfreak -- https://freesound.org/s/274856/ -- License: Attribution NonCommercial 4.0
+
 ## TODO:
 
 Lets just finish the damn jam. Make targets appear randomly, you get a multiplier for consecutive target hits.
