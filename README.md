@@ -1,5 +1,14 @@
 # 20 second game jam game
 
+## Setup
+
+```bash
+git clone https://github.com/konnorRogers/arrow-jam
+cd ./arrow-jam
+./copy-dragonruby ~/Downloads/dragonruby-macos/ .
+./dragonruby
+```
+
 ## TODO:
 
 Lets just finish the damn jam. Make targets appear randomly, you get a multiplier for consecutive target hits.
