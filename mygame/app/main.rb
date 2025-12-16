@@ -19,7 +19,7 @@ end
 
 require "vendor/sprite_kit/sprite_kit.rb"
 require "app/sprites.rb"
-require "vendor/high_score.rb"
+# require "vendor/high_score.rb"
 
 module App
   class Tile < ::SpriteKit::Sprite
@@ -132,7 +132,7 @@ module App
     def reload(arrow = ARROW_TYPES[:plain])
       # arrow = ARROW_TYPES[:plain]
       # arrow = ARROW_TYPES.values.sample
-      # arrow = ARROW_TYPES[:drill]
+      arrow = ARROW_TYPES[:drill]
       # arrow = ARROW_TYPES[:fire]
       # arrow = ARROW_TYPES[:lightning]
       # arrow = ARROW_TYPES[:ice]
@@ -653,6 +653,13 @@ module App
     end
 
     def setup
+      # Clean up drills.
+      if @projectiles
+        @projectiles.keys.each do |object_id|
+          @audio.delete(object_id)
+        end
+      end
+
       @player = Player.new(
         x: 25,
         # y: Grid.h / 2 - 32,
@@ -692,6 +699,7 @@ module App
       @collideables = []
       @powerups = []
       @enemies = []
+
       generate_enemies
       generate_powerups
     end
@@ -764,14 +772,26 @@ module App
     def tick(args)
       @outputs = args.outputs
       setup_grid(@outputs)
+      args.audio[:background_music] ||= { input: "sounds/background-music-converted.ogg", looping: true, gain: 0.1 }
 
       if @restart
         setup
       end
 
       if @paused || game_over?(@elapsed_time)
+        args.audio.background_music.paused = true
+        @projectiles.keys.each do |object_id|
+          audio_object = @audio[object_id]
+          audio_object.paused = true if audio_object
+        end
         @tick_start = nil
       elsif @tick_start
+        args.audio.background_music.paused = false
+
+        @projectiles.keys.each do |object_id|
+          audio_object = @audio[object_id]
+          audio_object.paused = false if audio_object
+        end
         @elapsed_time += ((Time.now - @tick_start) * 1000).to_i
         @tick_count += 1
       end
@@ -824,7 +844,17 @@ module App
       if @mouse.up
         if @player.power && @player.power > 1
           @projectiles[@player.arrow.object_id] = @player.arrow
+
+          if @player.arrow.arrow_type == :drill
+            @audio[@player.arrow.object_id] = {
+              input: "sounds/drill.wav", looping: true
+            }
+          end
           @player.arrow.shoot(@player.power)
+          @outputs.sounds << {
+            input: "sounds/shoot.wav",
+            gain: 1.0
+          }
           @player.reload
         end
         @mouse_start = nil
@@ -961,6 +991,7 @@ module App
                 exploded_at: @tick_count
               )
               @explosions[explosion.object_id] = explosion
+              @outputs.sounds << { input: "sounds/explosion.wav" }
             end
 
             if projectile.arrow_type == :lightning
@@ -975,6 +1006,7 @@ module App
               Array.each(projectile.shards) do |shard|
                 # shard.angle = 45
                 shard.shoot(100)
+                @outputs.sounds << { input: "sounds/ice-shatter.wav", gain: 0.05 }
                 # shard.hit_box = self
                 @projectiles[shard.object_id] = shard
               end
@@ -984,10 +1016,14 @@ module App
           end
         end
 
-        if projectile.y < -50 || projectile.y > Grid.h + 1000 || projectile.x < -500 || projectile.x > Grid.w + 400
+        is_drill = projectile.type == :arrow && projectile.arrow_type == :drill
+        if projectile.y < -50 || (is_drill && projectile.y > Grid.h + 100 || projectile.y > Grid.h + 1000) || projectile.x < -100 || projectile.x > Grid.w + 200
           @projectiles.delete(projectile.object_id)
 
           if projectile.type == :arrow
+            if projectile.arrow_type == :drill
+              @audio.delete(projectile.object_id)
+            end
             if projectile.arrow_type != :ice_shard && projectile.arrow_type != :drill
               @multiplier = 1
             end
@@ -1030,6 +1066,7 @@ module App
           collideables_to_delete << collideable
           new_chain_lightning = chain_lightning.jump_to(collideable, @tick_count)
           @chain_lightnings[new_chain_lightning.object_id] = new_chain_lightning
+          @outputs.sounds << { input: "sounds/lightning.wav" }
         end
 
         chain_lightning.active = false
@@ -1245,7 +1282,8 @@ module App
         text: "#{@power}%",
         size_px: size_px,
         primitive_marker: :label,
-        **PALLETTE.black,
+        **PALLETTE.white,
+        blendmode_enum: 2,
       }
 
       @angle_label = @power_label.merge({
@@ -1440,6 +1478,8 @@ module App
 end
 
 def tick(args)
+  # if Kernel.tick_count == 0
+  # end
   $game ||= App::Game.new
   $game.tick(args)
 end
