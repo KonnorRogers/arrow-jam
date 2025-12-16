@@ -132,7 +132,7 @@ module App
     def reload(arrow = ARROW_TYPES[:plain])
       # arrow = ARROW_TYPES[:plain]
       # arrow = ARROW_TYPES.values.sample
-      arrow = ARROW_TYPES[:drill]
+      # arrow = ARROW_TYPES[:drill]
       # arrow = ARROW_TYPES[:fire]
       # arrow = ARROW_TYPES[:lightning]
       # arrow = ARROW_TYPES[:ice]
