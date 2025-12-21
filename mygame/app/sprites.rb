@@ -183,6 +183,20 @@ module App
       source_w: 72,
       path: SPRITE_PATH
     },
+    button: {
+      source_x: 144,
+      source_y: 160,
+      source_h: 32,
+      source_w: 64,
+      path: SPRITE_PATH
+    },
+    button_hover: {
+      source_x: 144,
+      source_y: 112,
+      source_h: 32,
+      source_w: 64,
+      path: SPRITE_PATH
+    }
   }
 
   STEEL_TILES = {}

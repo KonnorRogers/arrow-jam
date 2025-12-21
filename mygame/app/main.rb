@@ -1,3 +1,12 @@
+class Numeric
+  def to_commas
+    integer, decimal = self.to_s.split(".")
+    num_groups = integer.chars.to_a.reverse.each_slice(3)
+    integer_with_commas = num_groups.map(&:join).join(',').reverse
+    [integer_with_commas, decimal].compact.join(".")
+  end
+end
+
 module App
   FPS = 60
   DELTA_TIME = 1 / FPS
@@ -19,9 +28,142 @@ end
 
 require "vendor/sprite_kit/sprite_kit.rb"
 require "app/sprites.rb"
-# require "vendor/high_score.rb"
+require "vendor/input.rb"
 
 module App
+  class StartScreen
+    attr_accessor :prefab, :buttons
+
+    def initialize
+      update
+    end
+
+    def update
+      @container = {
+        x: 0,
+        y: 0,
+        w: Grid.w,
+        h: Grid.h,
+        r: 0,
+        b: 0,
+        g: 0,
+        a: (255 * 0.5),
+        primitive_marker: :solid
+      }
+
+      @label_background = {
+        x: Grid.w / 2,
+        y: Grid.h / 2,
+        primitive_marker: :solid,
+        anchor_x: 0.5,
+        anchor_y: 0.5,
+        w: Grid.w * 0.8,
+        h: Grid.h * 0.8,
+        r: 50,
+        g: 50,
+        b: 50,
+        a: 255
+      }
+
+      label_text_size = 88
+      base_label = {
+        x: Grid.w / 2,
+        y: Grid.h / 2,
+        primitive_marker: :label,
+        anchor_x: 0.5,
+        anchor_y: 0.5,
+        size_px: label_text_size,
+        r: 255,
+        g: 255,
+        b: 255,
+        a: 255
+      }
+
+      @start_button_label = base_label.merge({
+        text: "Start",
+        size_px: 44,
+        y: base_label.y - 200
+      })
+
+      @title = base_label.merge({
+        text: "Hit the Dang Target"
+      })
+
+      padding_x = @start_button_label.size_px * 4
+      padding_y = @start_button_label.size_px * 0.4
+      w = (label_text_size / 4) * @start_button_label.text.length + padding_x
+      h = label_text_size + padding_y
+
+      @start_button = @start_button_label.merge({
+        anchor_x: 0,
+        anchor_y: 0,
+        w: w,
+        h: h,
+        x: @start_button_label.x - (w / 2),
+        y: @start_button_label.y - (h / 2),
+        primitive_marker: :sprite,
+        **SPRITES[:button],
+      })
+
+      @labels = [
+        @title,
+        @start_button_label
+      ]
+
+      @buttons = [
+        @start_button
+      ]
+
+      @prefab = [
+        @container,
+        @label_background,
+      ].concat(@buttons).concat(@labels)
+    end
+  end
+
+  class Leaderboard
+    def initialize(file = "data/high_scores.txt")
+      @file = file
+
+      load_scores
+    end
+
+    def save_score(score)
+      @scores << score
+      sort_scores!
+      @scores = @scores.take(20)
+      GTK.write_file(@file, @scores.join("\n"))
+    end
+
+    def load_scores
+      @scores = GTK.read_file(@file)
+
+      if @scores.nil?
+        @scores = []
+      else
+        @scores = @scores.split("\n")
+      end
+
+      @scores = @scores.map(&:to_i)
+    end
+
+    def high_score
+      @scores.max
+    end
+
+    def new_high_score?(score)
+      score > high_score
+    end
+
+    def sort_scores
+      @scores.sort_by { |a,b| a.to_i <=> b.to_i }
+    end
+
+    def sort_scores!
+      @scores = sort_scores
+    end
+  end
+
   class Tile < ::SpriteKit::Sprite
   end
 
@@ -137,6 +279,10 @@ module App
       # arrow = ARROW_TYPES[:lightning]
       # arrow = ARROW_TYPES[:ice]
       @arrow = arrow.new(x: @x + @bow_offset, y: @y, w: @w, h: @h, angle: @bow_angle, speed: @arrow_speed)
+
+      # if arrow.arrow_type == :drill
+      update_arrow_guide
+      # end
     end
 
     def x=(val)
@@ -144,6 +290,8 @@ module App
       @platform.x = val
       @arrow.x = @bow_offset + val
       @bow.x = @bow_offset + val
+      update_arrow_guide
+
     end
 
     def y=(val)
@@ -151,21 +299,47 @@ module App
       @arrow.y = val
       @bow.y = val
       @platform.y = val + @platform_offset
+      update_arrow_guide
     end
 
     def bow_angle=(val)
       @bow_angle = val
       @arrow.angle = val
       @bow.angle = val
+      update_arrow_guide
+    end
+
+    def update_arrow_guide
+      @arrow_guide = {
+        **@arrow.get_tip,
+        primitive_marker: :sprite,
+        path: :solid,
+        anchor_y: 0.5,
+        anchor_x: 0,
+        angle_anchor_x: 0,
+        angle_anchor_y: 0.5,
+        angle: @bow.angle,
+        w: Grid.w * 2,
+        h: 2,
+        r: 200,
+        b: 20,
+        g: 20,
+        a: 255
+      }
     end
 
     def prefab
-      [
+      ary = [
         @platform,
         @bow,
         @arrow,
         self,
       ]
+      if @arrow.arrow_type == :drill
+        ary << @arrow_guide
+      end
+
+      ary
     end
   end
 
@@ -575,7 +749,7 @@ module App
 
     def initialize(score:, **kwargs)
       super(**kwargs)
-      @total_time = 20_000
+      @total_time = PlayScene::MAX_TIME_IN_SECONDS * 1000
       @elapsed_time = 0
       @score = score
 
@@ -614,7 +788,7 @@ module App
 
     def score=(val)
       @score = val
-      @score_label.text = val
+      @score_label.text = val.to_commas
     end
 
     def elapsed_time=(val)
@@ -649,6 +823,7 @@ module App
     def initialize(...)
       super(...)
 
+      @started = false
       setup
     end
 
@@ -660,6 +835,7 @@ module App
         end
       end
 
+      @leaderboard = Leaderboard.new
       @player = Player.new(
         x: 25,
         # y: Grid.h / 2 - 32,
@@ -684,8 +860,9 @@ module App
       @projectiles = {}
       @explosions = {}
       @chain_lightnings = {}
+      @start_screen = StartScreen.new
       @pause_screen = PauseScreen.new
-      @game_over_screen = GameOverScreen.new
+      @game_over_screen = GameOverScreen.new(leaderboard: @leaderboard)
       @mode = MODES[:normal]
       @powerbar = PowerBar.new
 
@@ -702,6 +879,7 @@ module App
 
       generate_enemies
       generate_powerups
+      @score_saved = false
     end
 
     def generate_powerups(max_powerups = @max_powerups)
@@ -772,19 +950,43 @@ module App
     def tick(args)
       @outputs = args.outputs
       setup_grid(@outputs)
+
       args.audio[:background_music] ||= { input: "sounds/background-music-converted.ogg", looping: true, gain: 0.1 }
 
       if @restart
         setup
       end
 
-      if @paused || game_over?(@elapsed_time)
+      game_over = game_over?(@elapsed_time)
+      if game_over && !@score_saved
+        @score_saved = true
+        @leaderboard.save_score(@score)
+      end
+      if !@started || @paused || game_over
         args.audio.background_music.paused = true
         @projectiles.keys.each do |object_id|
-          audio_object = @audio[object_id]
-          audio_object.paused = true if audio_object
+          audio = @audio[object_id]
+          audio.paused = true if audio
         end
         @tick_start = nil
+
+        if !@started
+          @start_screen.buttons.each do |button|
+            if args.inputs.mouse.intersect_rect?(button)
+              button.merge!({
+                **SPRITES[:button_hover]
+              })
+              if args.inputs.mouse.click
+                @started = true
+                return
+              end
+            else
+              button.merge!({
+                **SPRITES[:button]
+              })
+            end
+          end
+        end
       elsif @tick_start
         args.audio.background_music.paused = false
 
@@ -815,21 +1017,37 @@ module App
 
     def input
       if game_over?(@elapsed_time)
-        if @mouse.click
-          @restart = true
+        if @mouse.intersect_rect?(@game_over_screen.play_again_button)
+          @game_over_screen.play_again_button.merge!(**SPRITES[:button_hover])
+          if @mouse.click
+            @restart = true
+          end
+        else
+          @game_over_screen.play_again_button.merge!(**SPRITES[:button])
         end
         return
       end
 
       if @keyboard.key_down.escape || @keyboard.key_down.p
         @paused = !@paused
+
+        if @paused
+          @projectiles.keys.each do |object_id|
+            audio_object = @audio[object_id]
+            audio_object.paused = true if audio_object
+          end
+        end
       end
 
-      if @keyboard.key_down.period
+      if @keyboard.key_down.period && !GTK.production?
         @debug = !@debug
       end
 
       if @paused
+        return
+      end
+
+      if !@started
         return
       end
 
@@ -847,13 +1065,13 @@ module App
 
           if @player.arrow.arrow_type == :drill
             @audio[@player.arrow.object_id] = {
-              input: "sounds/drill.wav", looping: true
+              input: "sounds/drill.wav", looping: true, gain: 0.2
             }
           end
           @player.arrow.shoot(@player.power)
           @outputs.sounds << {
             input: "sounds/shoot.wav",
-            gain: 1.0
+            gain: 0.8
           }
           @player.reload
         end
@@ -875,7 +1093,7 @@ module App
     end
 
     def calc
-      if @paused || game_over?(@elapsed_time)
+      if !@started || @paused || @restart || game_over?(@elapsed_time)
         return
       end
 
@@ -991,7 +1209,7 @@ module App
                 exploded_at: @tick_count
               )
               @explosions[explosion.object_id] = explosion
-              @outputs.sounds << { input: "sounds/explosion.wav" }
+              @outputs.sounds << { input: "sounds/explosion.wav", gain: 0.3 }
             end
 
             if projectile.arrow_type == :lightning
@@ -1147,6 +1365,8 @@ module App
 
       if @paused
         draw_buffer.primitives.concat(@pause_screen.prefab)
+      elsif !@started
+        draw_buffer.primitives.concat(@start_screen.prefab)
       elsif game_over?(@elapsed_time)
         @game_over_screen.score = @score
         draw_buffer.primitives.concat(@game_over_screen.prefab)
@@ -1301,11 +1521,22 @@ module App
   end
 
   class GameOverScreen < ::SpriteKit::Sprite
-    attr_accessor :prefab, :score
+    attr_accessor :prefab, :play_again_button, :buttons
+    attr_reader :score
 
-    def initialize(...)
-      super(...)
+    def initialize(leaderboard:, **kwargs)
+      super(**kwargs)
 
+      @leaderboard = leaderboard
+      update
+    end
+
+    def score=(val)
+      @score_label.text = "Score: #{val.to_commas}"
+      @score = val
+    end
+
+    def update
       @container = {
         x: 0,
         y: 0,
@@ -1319,13 +1550,13 @@ module App
       }
 
       @label_background = {
-        x: Grid.w / 2,
-        y: Grid.h / 2,
+        x: Grid.w * 0.1,
+        y: Grid.h * 0.1,
+        w: Grid.w * 0.8,
+        h: Grid.h * 0.8,
         primitive_marker: :solid,
-        anchor_x: 0.5,
-        anchor_y: 0.5,
-        w: Grid.w / 2,
-        h: Grid.h / 2,
+        # anchor_x: 0.5,
+        # anchor_y: 0.5,
         r: 50,
         g: 50,
         b: 50,
@@ -1348,30 +1579,44 @@ module App
 
       @score_label = label.merge({
         text: "Score: ",
+        size_px: label.size_px / 2,
+        anchor_x: 0.5,
+        anchor_y: 0.5,
         y: label.y + (label_text_size),
+      })
+
+      @play_again_button_label = label.merge({
+          text: "Play Again",
+          size_px: (label_text_size / 2),
+          y: label.y - 200
+        })
+      @play_again_button = @play_again_button_label.merge({
+        w: @play_again_button_label.text.length * (@play_again_button_label.size_px / 1.4),
+        h: @play_again_button_label.size_px * 2,
+        primitive_marker: :sprite,
+        **SPRITES[:button]
       })
       @labels = [
         @score_label,
-        label.merge({
-          text: "Game Over."
+        @play_again_button_label,
+        @score_label.merge({
+          text: "High Score: #{@leaderboard.high_score.to_commas}",
+          y: @score_label.y + @score_label.size_px + 10
         }),
         label.merge({
-          text: "Click anywhere to play again.",
-          size_px: (label_text_size / 2),
-          y: label.y - (label_text_size),
-        })
+          text: "Game Over.",
+          y: label.y - 100
+        }),
       ]
 
+      @buttons = [
+        @play_again_button
+      ]
 
       @prefab = [
         @container,
         @label_background,
-      ].concat(@labels)
-    end
-
-    def score=(val)
-      @score_label.text = "Score: #{val}"
-      @score = val
+      ].concat(@buttons).concat(@labels)
     end
   end
 
@@ -1443,9 +1688,10 @@ module App
 
 
   class Game
-    attr_accessor :outputs
+    attr_accessor :outputs, :purple_token
 
     def initialize
+
       @scene_manager = SpriteKit::SceneManager.new(
         current_scene: :play_scene,
         scenes: {
@@ -1457,10 +1703,17 @@ module App
     end
 
     def tick(args)
+      if @scene_manager.current_scene != :play_scene
+        args.audio.background_music.paused = true
+      end
+
       @outputs = args.outputs
       @scene_manager.tick(args)
 
+
       if args.inputs.keyboard.key_down.close_square_brace
+        # args.audio[:background_music].paused = true
+        # args.audio.delete(:background_music)
         scenes = @scene_manager.scenes.keys
 
         current_scene_index = scenes.find_index { |scene| scene == @scene_manager.current_scene }
