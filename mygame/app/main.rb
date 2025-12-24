@@ -148,7 +148,7 @@ module App
     end
 
     def high_score
-      @scores.max
+      @scores.max || 0
     end
 
     def new_high_score?(score)
